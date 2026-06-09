@@ -1,0 +1,66 @@
+name: pr-ci-fixer
+goal: >
+  Keep the current pull request green. If CI fails, diagnose the failure,
+  make the minimal fix, run the relevant tests, and accept only verified work.
+
+trigger:
+  type: interval
+  every: 10m
+
+runner:
+  type: dry-run
+
+context:
+  include:
+    - github_pr
+    - changed_files
+    - ci_logs
+    - repo_instructions
+    - previous_attempts
+  max_tokens: 60000
+
+budget:
+  max_cost_usd: 3
+  max_iterations: 8
+  max_runtime: 2h
+  min_interval: 5m
+  stop_on_repeated_failure: 3
+
+tools:
+  allow:
+    - file.read
+    - file.edit
+    - "shell.run: npm test"
+    - git.diff
+    - git.commit
+  ask:
+    - git.push
+  deny:
+    - "file.read: .env"
+    - "shell.run: rm -rf"
+    - "shell.run: curl * | sh"
+
+verifier:
+  strategy: composite
+  checks:
+    - type: runner_exit_zero
+    - type: diff_scope
+      max_files_changed: 5
+    - type: no_secret_access
+
+stop:
+  max_iterations: 8
+  repeated_failure: 3
+  no_progress: 3
+
+rollback:
+  strategy: git_worktree
+  rollback_on_failed_verifier: true
+  preserve_artifacts: true
+
+evolution:
+  enabled: false
+  propose_updates_to:
+    - loop_prompt
+    - verifier_rubric
+    - context_policy
